@@ -3,9 +3,13 @@
 ## 1. 基本概念    
 
 ### 1.1 头文件    
-  | 数据结构			| 头文件	|
-  | :---:				| :---:		|
-  | struct sockaddr_in	| netinet/in.h	|
+  | 数据结构/函数						| 头文件	|
+  | :---:								| :---:		|
+  | struct sockaddr_in					| netinet/in.h	|
+  | struct sockaddr						| sys/socket.h	|
+  | socklen_t							| unistd.h		|
+  | htons()/htonl()/ntohs()/ntohl()		|	netinet/in.h	|
+  | inet_pton()/inet_ntop()				| arpa/inet.h	|
 
 
 ### 1.2 多进程并发服务器    
