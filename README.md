@@ -133,6 +133,18 @@
   2. SHUT_WR    
     关闭连接的写这一半，对于TCP套接字，这称为**半关闭(half-close)**。当前留在套接字发送缓冲区中的数据将被发送掉，后跟TCP的正常连接终止序列。进程不能再对这样的套接字调用任何写函数。    
 
-  
+### 2.4 客户进程使用poll，从标准输入读取到EOF后shutdown写连接    
+  select使用基于文件描述符的三位掩码解决方案，其效率不高：调用select时要向内核传递整个描述符集，而描述符集又是“值-结果”参数，select调用返回时内核会更改描述符集，将就绪描述符对应的位置位，所以每次调用select需要对描述符集重新初始化；select的文件描述符集是静态的，需要用户指定待测试的描述符个数，需要对这个描述符个数的值进行权衡：如果值很小，会限制select可监视的最大文件描述符值；如果值很大，效率会很低，因为大的位掩码操作效率不高，尤其是当无法确定集合是否是稀疏集合。    
+  poll使用由nfds个`pollfd`结构体构成的数组，每个数组元素用于指定测试某个给定描述符fd的条件，数组大小nfds完全由用户指定，不像select要受到`FD_SETSIZE`和每个进程可打开的最大描述符数目的限制。用户不需要指定待测试的描述符个数，内核会检查数组中的每个元素。    
+  ```c
+  #include <poll.h>
 
-	
+  int poll(struct pollfd *fds, nfds_t nfds, int timeout);
+  struct pollfd {
+  	int fd;		/* file descriptor */
+	short events;	/* requested events to watch */
+	short revents;	/* returned events witnessed */
+  }
+  ```
+
+  每个`pollfd`结构体指定一个被监视的文件描述符，其中`events`变量是要监视的文件描述符的事件的位掩码，`revents`变量是该文件描述符的结果事件的位掩码，`events`为调用值，`revents`为返回结果，从而避免使用“值-结果”参数，而select的描述符集为“值-结果”参数。
