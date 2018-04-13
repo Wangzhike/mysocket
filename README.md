@@ -79,6 +79,6 @@
 
   3. 客户进程同时应对sockfd和stdin两个描述符，使用I/O多路复用，使服务器进程一经终止客户就能检测到    
     启动客户/服务器对，然后杀死服务器子进程，从而模拟服务器进程崩溃的情况(注意这里对应的是服务器进程崩溃，而服务器主机崩溃是另外的情况)。子进程被杀死后，系统发送SIGCHLD信号给服务器父进程，父进程正确处理子进程异常终止，关闭子进程打开的所有文件描述符，从而引发服务器TCP发送一个FIN分节给客户TCP，并响应一个ACK分节。**接下来服务器TCP期待TCP四次挥手的后两个分节，但此时客户进程阻塞在fgets调用上，等待从终端接收一行文本，无法向服务器TCP回送FIN分节，所以此时服务器TCP处于CLOSE_WAIT状态，客户TCP处理FIN_WAIT2状态**，可以用netstat命令观察到套接字的状态：    
-	![process of server terminated prematurely](https://github.com/Wangzhike/mysocket/raw/master/picture/process_of_server_terminated_prematurely.png)    
+	![process of server terminated prematurely](https://github.com/Wangzhike/mysocket/raw/master/myecho/picture/process_of_server_terminated_prematurely.png)    
 	本例子的问题在于：当FIN到达套接字时，客户正阻塞在fgets调用上。客户实际上在应对两个描述符——套接字和用户输入，它不能单纯阻塞在这两个源中某个特定源的输入上，而是应该阻塞在其中任何一个源的输入上。这正是select和poll这两个函数的目的之一。    
 
