@@ -89,12 +89,12 @@
 	select函数：    
 	该函数允许进程指示内核等待多个事件(读、写、异常)中的任何一个发生，并只在有一个或多个时间发生或经历一段指定的时间后才唤醒。    
 	
-	```c
-    #include <sys/select.h>
-	#include <sys/time.h>
+		```c
+		#include <sys/select.h>
+		#include <sys/time.h>
 
-	int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout);
-	```
+		int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout);
+		```
 
 	`timeout`为NULL，一直阻塞于select调用，直到有一个描述符准备好I/O才返回；`timeout`不为NULL，阻塞一段固定时间，如果没有一个文件描述符准备好，一直等待这么长时间后返回；如果`timeout`值为0，则检查描述符后立即返回。    
 	`readfds`、`writefds`、`exceptfds`为读、写和异常条件的描述符集。select使用描述符集，通常是一个整形数组，其中每个整数中的每一位对应一个描述符。举例来说，假设使用32位整数，那么该数组的第一个元素对应于描述符`0~31`，第二个元素对应于描述符`32~61`，依次类推。实现细节隐藏于`fd_set`数据类型，使用四个宏函数操纵描述符集：    
