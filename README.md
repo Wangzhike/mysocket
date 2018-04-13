@@ -29,46 +29,46 @@
   2. 多进程并发服务器，处理SIGCHLD信号    
       1. 信号管理    
 	      1. 基本信号管理    
-	        C标准定义的`signal`函数，早于POSIX标准，不同的实现提供不同的信号语义以达成向后兼容，不符合POSIX语义。    
-			```c
-			#include <signal.h>
+	          C标准定义的`signal`函数，早于POSIX标准，不同的实现提供不同的信号语义以达成向后兼容，不符合POSIX语义。    
+			  ```c
+			  #include <signal.h>
 
-			typedef void (*sighandler_t)(int);
-			sighandler_t signal(int signo, sighandler_t *handler);
-			```
+			  typedef void (*sighandler_t)(int);
+			  sighandler_t signal(int signo, sighandler_t *handler);
+			  ```
 
 	      2. 高级信号管理    
-	        POSIX定义了`sigaction`系统调用。    
-			```c
-			#include <signal.h>
+	          POSIX定义了`sigaction`系统调用。    
+			  ```c
+			  #include <signal.h>
 
-			int sigaction(int signo, const struct sigaction *act, struct sigaction *oldact)
-			```
+			  int sigaction(int signo, const struct sigaction *act, struct sigaction *oldact)
+			  ```
 
-			调用sigaction会改变由signo表示的信号的行为，signo是除`SIGKILL`和`SIGSTOP`外的任何值。`act`非空，将该信号的当前行为替换成参数act指定的行为。`oldact`非空，在其中存储先前(或者是当前的，如果act非空)指定的信号行为。    
-			结构体`struct sigaction`支持细粒度控制信号：    
-			```c
-			struct sigaction {
+			  调用sigaction会改变由signo表示的信号的行为，signo是除`SIGKILL`和`SIGSTOP`外的任何值。`act`非空，将该信号的当前行为替换成参数act指定的行为。`oldact`非空，在其中存储先前(或者是当前的，如果act非空)指定的信号行为。    
+			  结构体`struct sigaction`支持细粒度控制信号：    
+			  ```c
+			  struct sigaction {
 				void (*sa_handler)(int);	/* signal handler or action */
 				void (*sa_sigaction)(int, siginfo_t *, void *);		/* 新的表示如何执行信号处理函数 */
 				sigset_t sa_mask;	/* 执行信号时被阻塞的信号集 */
 				int sa_flags;	/* flags */
 				void (*sa_restore)(void);	/* obsolete and non-POSIX */
-			}
-			```
+			  }
+			  ```
 
-			如果`sa_flags`设置`SA_SIGINFO`标志，则由`sa_sigaction`来决定如何执行信号处理，提供有关该信号的更多信息和功能；否则，使用`sa_handler`处理信号，与C标准`signal`函数原型相同。    
+			  如果`sa_flags`设置`SA_SIGINFO`标志，则由`sa_sigaction`来决定如何执行信号处理，提供有关该信号的更多信息和功能；否则，使用`sa_handler`处理信号，与C标准`signal`函数原型相同。    
 
-			信号集类型`sigset_t`表示一组信号集合，定义下列函数管理信号集：    
-			```c
-			#include <signal.h>
+			  信号集类型`sigset_t`表示一组信号集合，定义下列函数管理信号集：    
+			  ```c
+			  #include <signal.h>
 
-			int sigemptyset(sigset_t *set);
-			int sigfillset(sigset *set);
-			int sigaddset(sigset *set, int signo);
-			int sigdelset(sigset *set, int signo);
-			int sigismember(const sigset *set, int signo);
-			```
+			  int sigemptyset(sigset_t *set);
+			  int sigfillset(sigset *set);
+			  int sigaddset(sigset *set, int signo);
+			  int sigdelset(sigset *set, int signo);
+			  int sigismember(const sigset *set, int signo);
+			  ```
 
       2. 父进程阻塞于accept慢系统调用时处理SIGCHLD信号可能导致父进程中止    
 	    当SIGCHLD信号递交时，父进程阻塞于accept调用，accept是慢系统调用，内核会使accept返回一个EINTR错误(被中断的系统调用)。如果父进程不处理这个错误，就会中止。而这里父进程没有中止，是因为在注册信号处理函数mysignal中设置了`SA_RESTART`标志，内核自动重启被中断的accept调用。不过为了便于移植，必须为accept处理EINTR错误。    
