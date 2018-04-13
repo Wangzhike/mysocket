@@ -68,7 +68,7 @@
 			int sigaddset(sigset *set, int signo);
 			int sigdelset(sigset *set, int signo);
 			int sigismember(const sigset *set, int signo);
-		```
+			```
 
       2. 父进程阻塞于accept慢系统调用时处理SIGCHLD信号可能导致父进程中止    
 	    当SIGCHLD信号递交时，父进程阻塞于accept调用，accept是慢系统调用，内核会使accept返回一个EINTR错误(被中断的系统调用)。如果父进程不处理这个错误，就会中止。而这里父进程没有中止，是因为在注册信号处理函数mysignal中设置了`SA_RESTART`标志，内核自动重启被中断的accept调用。不过为了便于移植，必须为accept处理EINTR错误。    
@@ -88,13 +88,12 @@
 	
 	select函数：    
 	该函数允许进程指示内核等待多个事件(读、写、异常)中的任何一个发生，并只在有一个或多个时间发生或经历一段指定的时间后才唤醒。    
-	
-		```c
+	```c
 		#include <sys/select.h>
 		#include <sys/time.h>
 
 		int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout);
-		```
+	```
 
 	`timeout`为NULL，一直阻塞于select调用，直到有一个描述符准备好I/O才返回；`timeout`不为NULL，阻塞一段固定时间，如果没有一个文件描述符准备好，一直等待这么长时间后返回；如果`timeout`值为0，则检查描述符后立即返回。    
 	`readfds`、`writefds`、`exceptfds`为读、写和异常条件的描述符集。select使用描述符集，通常是一个整形数组，其中每个整数中的每一位对应一个描述符。举例来说，假设使用32位整数，那么该数组的第一个元素对应于描述符`0~31`，第二个元素对应于描述符`32~61`，依次类推。实现细节隐藏于`fd_set`数据类型，使用四个宏函数操纵描述符集：    
