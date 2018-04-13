@@ -68,7 +68,7 @@
 			int sigaddset(sigset *set, int signo);
 			int sigdelset(sigset *set, int signo);
 			int sigismember(const sigset *set, int signo);
-			```
+		```
 
       2. 父进程阻塞于accept慢系统调用时处理SIGCHLD信号可能导致父进程中止    
 	    当SIGCHLD信号递交时，父进程阻塞于accept调用，accept是慢系统调用，内核会使accept返回一个EINTR错误(被中断的系统调用)。如果父进程不处理这个错误，就会中止。而这里父进程没有中止，是因为在注册信号处理函数mysignal中设置了`SA_RESTART`标志，内核自动重启被中断的accept调用。不过为了便于移植，必须为accept处理EINTR错误。    
