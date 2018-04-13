@@ -115,5 +115,24 @@
   ![tcpcli_RST_error](https://github.com/Wangzhike/mysocket/raw/master/myecho/picture/tcpcli_RST_error.png)    
   服务器子进程的str_echo函数read收到RST错误：    
   ![tcpserv_RST_error](https://github.com/Wangzhike/mysocket/raw/master/myecho/picture/tcpserv_RST_error.png)    
+  个人分析出现错误的原因为：当客户进程从标准输入读取到EOF时，str_cli返回到main函数，main函数随机退出，从而导致客户TCP发送RST分节到服务器子进程！    
+
+### 2.3 客户进程使用select，从标准输入读取到EOF后shutdown关闭写连接    
+  终止网络连接的通常方法是调用close函数。不过close有两个限制，却可以使用shutdown避免：    
+  1. close把描述符引用计数减1，仅在该计数变为0时才关闭套接字。使用shutdown可以不管引用计数就激发TCP的正常连接终止序列。    
+  2. close终止读和写两个方向的数据传送。既然TCP连接是全双工的，有时我们需要告知对端我们已经完成了数据发送，即使对端仍有数据要发送给我们，这也正是str_cli函数在批量输入时的情况。使用shutdown可以关闭TCP连接读或写的任意一端。    
+  ```c
+  #include <sys/socket.h>
+
+  int shutdown(int sockfd, int howto);
+  ```
+
+  该函数的行为依赖于`howto`参数的值：    
+  1. SHUT_RD    
+    关闭连接的读这一半，套接字中不再有数据可接收，而且套接字接收缓冲区中的现有数据都被丢弃。进程不能再对这样的套接字调用任何读函数。对一个TCP套接字这样调用shutdown函数后，由该套接字接收的来自对端的任何数据都被确认，然后悄然丢弃。    
+  2. SHUT_WR    
+    关闭连接的写这一半，对于TCP套接字，这称为**半关闭(half-close)**。当前留在套接字发送缓冲区中的数据将被发送掉，后跟TCP的正常连接终止序列。进程不能再对这样的套接字调用任何写函数。    
+
+  
 
 	
