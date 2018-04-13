@@ -85,14 +85,15 @@
 	I/O复用的典型应用场景：    
 	  - 客户处理多个描述符(通常是交互式输入和网络套接字)    
 	  - TCP服务器既要处理监听套接字listenfd，又要处理已连接套接字connfd    
+	
 	select函数：    
 	该函数允许进程指示内核等待多个事件(读、写、异常)中的任何一个发生，并只在有一个或多个时间发生或经历一段指定的时间后才唤醒。    
 	
 	```c
-	  #include <sys/select.h>
-	  #include <sys/time.h>
+    #include <sys/select.h>
+	#include <sys/time.h>
 
-	  int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout);
+	int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout);
 	```
 
 	`timeout`为NULL，一直阻塞于select调用，直到有一个描述符准备好I/O才返回；`timeout`不为NULL，阻塞一段固定时间，如果没有一个文件描述符准备好，一直等待这么长时间后返回；如果`timeout`值为0，则检查描述符后立即返回。    
