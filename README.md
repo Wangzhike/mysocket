@@ -83,10 +83,11 @@
 	本例子的问题在于：当FIN到达套接字时，客户正阻塞在fgets调用上。客户实际上在应对两个描述符——套接字和用户输入，它不能单纯阻塞在这两个源中某个特定源的输入上，而是应该阻塞在其中任何一个源的输入上。这正是select和poll这两个函数的目的之一。    
 	对于客户进程需要一种预先告知内核的能力，使得内核一旦发现进程指定的一个或多个I/O条件就绪(输入已准备好被读取，或者描述符已能承载更多的输出)，它就通知进程。这个能力称为I/O复用。I/O复用使进程阻塞在select或poll系统调用上，而不是阻塞在真正的I/O系统调用上。    
 	I/O复用的典型应用场景：    
-	  客户处理多个描述符(通常是交互式输入和网络套接字)    
-	  TCP服务器既要处理监听套接字listenfd，又要处理已连接套接字connfd    
+	  - 客户处理多个描述符(通常是交互式输入和网络套接字)    
+	  - TCP服务器既要处理监听套接字listenfd，又要处理已连接套接字connfd    
 	select函数：    
 	该函数允许进程指示内核等待多个事件(读、写、异常)中的任何一个发生，并只在有一个或多个时间发生或经历一段指定的时间后才唤醒。    
+	
 	```c
 	  #include <sys/select.h>
 	  #include <sys/time.h>
@@ -96,12 +97,13 @@
 
 	`timeout`为NULL，一直阻塞于select调用，直到有一个描述符准备好I/O才返回；`timeout`不为NULL，阻塞一段固定时间，如果没有一个文件描述符准备好，一直等待这么长时间后返回；如果`timeout`值为0，则检查描述符后立即返回。    
 	`readfds`、`writefds`、`exceptfds`为读、写和异常条件的描述符集。select使用描述符集，通常是一个整形数组，其中每个整数中的每一位对应一个描述符。举例来说，假设使用32位整数，那么该数组的第一个元素对应于描述符`0~31`，第二个元素对应于描述符`32~61`，依次类推。实现细节隐藏于`fd_set`数据类型，使用四个宏函数操纵描述符集：    
-	  ```c
+	  
+	 ```c
 	  void FD_ZERO(fd_set *set);	/* clear all bits in set */
 	  void FD_SET(int fd, fd_set *set);		/* turn on the bit for fd in set */
 	  void FD_CLR(int fd, fd_set *set);		/* turn off the bit for fd in set */
 	  void FD_ISSET(int fd, fd_set *set);	/* is the bit of fd on in set? */
-	  ```
+	 ```
 
 	对`readfds`、`writefds`、`exceptfds`三个参数中的某一个不感兴趣，则可以把它设为NULL。`nfds`指定待测试的描述符个数，其值为待测试的最大描述符加1，因为描述符是从0开始的。所以，`[0, nfds)`指定描述符的范围，在这个指定范围内，由`readfds`、`writefds`、`exceptfds`指定的描述符将被测试。    
 	注意`readfds`、`writefds`、`exceptfds`都是“值-结果”参数，调用select时其用于指定要监听的描述符，从select返回时内核会更改这些描述符集，指示哪些描述符已就绪。所以每次重新调用select函数时，都要再次把所有描述符内所关心的位均置1。    
