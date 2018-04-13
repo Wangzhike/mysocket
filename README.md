@@ -78,7 +78,37 @@
         Unix信号默认是不排队的。也就是说，如果一个信号在被阻塞期间产生了一次或多次，那么该信号被解阻塞通常只递交一次。如果多个SIGCHLD信号在信号处理函数sig_chld执行之前产生，由于信号是不排队的，所以sig_chld函数只执行一次，仍会出现僵尸进程。信号处理函数应改为使用waitpid，以获取所有已终止子进程的状态，同时指定`WNOHANG`选项，告知waitpid在有尚未终止的子进程在运行时不要阻塞，从而直接从信号处理函数返回。    
 
   3. 客户进程同时应对sockfd和stdin两个描述符，使用I/O多路复用，使服务器进程一经终止客户就能检测到    
-    启动客户/服务器对，然后杀死服务器子进程，从而模拟服务器进程崩溃的情况(注意这里对应的是服务器进程崩溃，而服务器主机崩溃是另外的情况)。子进程被杀死后，系统发送SIGCHLD信号给服务器父进程，父进程正确处理子进程异常终止，关闭子进程打开的所有文件描述符，从而引发服务器TCP发送一个FIN分节给客户TCP，并响应一个ACK分节。**接下来服务器TCP期待TCP四次挥手的后两个分节，但此时客户进程阻塞在fgets调用上，等待从终端接收一行文本，无法向服务器TCP回送FIN分节，所以此时服务器TCP处于CLOSE_WAIT状态，客户TCP处理FIN_WAIT2状态**，可以用netstat命令观察到套接字的状态：    
+    启动客户/服务器对，然后杀死服务器子进程，从而模拟服务器进程崩溃的情况(注意这里对应的是服务器进程崩溃，而服务器主机崩溃是另外的情况)。子进程被杀死后，系统发送SIGCHLD信号给服务器父进程，父进程正确处理子进程异常终止，关闭子进程打开的所有文件描述符，从而引发服务器TCP发送一个FIN分节给客户TCP，并响应一个ACK分节。**接下来服务器TCP期待TCP四次挥手的后两个分节，但此时客户进程阻塞在fgets调用上，等待从终端接收一行文本，无法执行readline函数读取服务器TCP发送的FIN分节代表的EOF，所以不能直接退出以向服务器TCP回送FIN分节，所以此时服务器TCP处于CLOSE_WAIT状态，客户TCP处理FIN_WAIT2状态**，可以用netstat命令观察到套接字的状态：    
 	![process of server terminated prematurely](https://github.com/Wangzhike/mysocket/raw/master/myecho/picture/process_of_server_terminated_prematurely.png)    
 	本例子的问题在于：当FIN到达套接字时，客户正阻塞在fgets调用上。客户实际上在应对两个描述符——套接字和用户输入，它不能单纯阻塞在这两个源中某个特定源的输入上，而是应该阻塞在其中任何一个源的输入上。这正是select和poll这两个函数的目的之一。    
+	对于客户进程需要一种预先告知内核的能力，使得内核一旦发现进程指定的一个或多个I/O条件就绪(输入已准备好被读取，或者描述符已能承载更多的输出)，它就通知进程。这个能力称为I/O复用。I/O复用使进程阻塞在select或poll系统调用上，而不是阻塞在真正的I/O系统调用上。    
+	I/O复用的典型应用场景：    
+	  - 客户处理多个描述符(通常是交互式输入和网络套接字)    
+	  - TCP服务器既要处理监听套接字listenfd，又要处理已连接套接字connfd    
+	select函数：    
+	  该函数允许进程指示内核等待多个事件(读、写、异常)中的任何一个发生，并只在有一个或多个时间发生或经历一段指定的时间后才唤醒。    
+	  ```c
+	  #include <sys/select.h>
+	  #include <sys/time.h>
 
+	  int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout);
+	  ```
+	  `timeout`为NULL，一直阻塞于select调用，直到有一个描述符准备好I/O才返回；`timeout`不为NULL，阻塞一段固定时间，如果没有一个文件描述符准备好，一直等待这么长时间后返回；如果`timeout`值为0，则检查描述符后立即返回。    
+	  `readfds`、`writefds`、`exceptfds`为读、写和异常条件的描述符集。select使用描述符集，通常是一个整形数组，其中每个整数中的每一位对应一个描述符。举例来说，假设使用32位整数，那么该数组的第一个元素对应于描述符`0~31`，第二个元素对应于描述符`32~61`，依次类推。实现细节隐藏于`fd_set`数据类型，使用四个宏函数操纵描述符集：    
+	  ```c
+	  void FD_ZERO(fd_set *set);	/* clear all bits in set */
+	  void FD_SET(int fd, fd_set *set);		/* turn on the bit for fd in set */
+	  void FD_CLR(int fd, fd_set *set);		/* turn off the bit for fd in set */
+	  void FD_ISSET(int fd, fd_set *set);	/* is the bit of fd on in set? */
+	  ```
+
+	  对`readfds`、`writefds`、`exceptfds`三个参数中的某一个不感兴趣，则可以把它设为NULL。`nfds`指定待测试的描述符个数，其值为待测试的最大描述符加1，因为描述符是从0开始的。所以，`[0, nfds)`指定描述符的范围，在这个指定范围内，由`readfds`、`writefds`、`exceptfds`指定的描述符将被测试。    
+	  注意`readfds`、`writefds`、`exceptfds`都是“值-结果”参数，调用select时其用于指定要监听的描述符，从select返回时内核会更改这些描述符集，指示哪些描述符已就绪。所以每次重新调用select函数时，都要再次把所有描述符内所关心的位均置1。    
+	
+	但这样改进后，对于将输入重定向到文件的批量输入仍存在问题：我们现在的处理是当从标准输入读取到EOF时，str_cli函数就此返回到main函数，而main函数随后终止。在批量输入方式下，标准输入中的EOF并不意味着我们同时也完成了从套接字的读入：可能仍有请求在去往服务器的路上，或者仍有应答在返回客户的路上。    
+	客户进程将makefile重定向到输入，得到的回射输出少于输入文件：    
+	![tcpcli_RST_error](https://github.com/Wangzhike/mysocket/raw/master/myecho/picture/tcpcli_RST_error.png)    
+	服务器子进程的str_echo函数read收到RST错误：    
+	![tcpserv_RST_error](https://github.com/Wangzhike/mysocket/raw/master/myecho/picture/tcpserv_RST_error.png)    
+
+	
